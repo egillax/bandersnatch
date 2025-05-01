@@ -2,7 +2,7 @@ import logging
 from collections.abc import Iterator
 from operator import itemgetter
 
-from packaging.version import Version, parse
+from packaging.version import Version, parse, InvalidVersion
 
 from bandersnatch.filter import FilterReleasePlugin
 
@@ -18,6 +18,7 @@ class LatestReleaseFilter(FilterReleasePlugin):
     keep = 0  # by default, keep 'em all
     # by default, sort by parsed version string, time (of release) is the other option
     sort_by = "version"
+    pep440 = True
 
     def initialize_plugin(self) -> None:
         """
@@ -49,6 +50,10 @@ class LatestReleaseFilter(FilterReleasePlugin):
             )
         except KeyError:
             return
+        try:
+            self.pep440 = bool(self.configuration["latest_release"]["pep440"])
+        except KeyError:
+            return
 
     def filter(self, metadata: dict) -> bool:
         """
@@ -61,6 +66,17 @@ class LatestReleaseFilter(FilterReleasePlugin):
 
         if self.keep == 0 or self.keep > len(releases):
             return True
+
+        if self.pep440:
+            # copy the releases dict to avoid modifying the original
+            releases = releases.copy()
+            for ver in list(releases):
+                try:
+                    _ = Version(ver)
+                except InvalidVersion:
+                    del releases[ver]
+
+
 
         getter_index = 1
         if self.sort_by == "time":
